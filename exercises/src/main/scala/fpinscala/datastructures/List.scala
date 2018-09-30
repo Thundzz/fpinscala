@@ -50,19 +50,76 @@ object List { // `List` companion object. Contains functions for creating and wo
     foldRight(ns, 1.0)(_ * _) // `_ * _` is more concise notation for `(x,y) => x * y`; see sidebar
 
 
-  def tail[A](l: List[A]): List[A] = ???
+  def tail[A](l: List[A]): List[A] = l match {
+    case Nil => Nil
+    case Cons(_, xs) => xs
+  }
+  // We could raise an error if the list is already Nil
 
-  def setHead[A](l: List[A], h: A): List[A] = ???
+  def setHead[A](l: List[A], h: A): List[A] = l match {
+    case Nil => Nil
+    case Cons(_, xs) => Cons(h, xs)
+  }
 
-  def drop[A](l: List[A], n: Int): List[A] = ???
+  def drop[A](l: List[A], n: Int): List[A] =
+    if (n == 0) l
+    else drop(tail(l), n-1)
 
-  def dropWhile[A](l: List[A], f: A => Boolean): List[A] = ???
+   def dropWhile[A](l: List[A], f: A => Boolean): List[A] = l match {
+    case Nil => Nil
+    case Cons(a, as) => if (f(a)) dropWhile(as, f) else l
+  }
 
-  def init[A](l: List[A]): List[A] = ???
+  /*
+  * The way the list data structure is implemeted makes it impossible to "jump" to the end of the list.
+  * We are forced to iterate until the end in order to remove the last element.
+  * */
+  def init[A](l: List[A]): List[A] = l match {
+    case Nil => Nil
+    case Cons(_, Nil) => Nil
+    case Cons(x1, xs) => Cons(x1, init(xs))
+  }
 
-  def length[A](l: List[A]): Int = ???
+  def length[A](l: List[A]): Int = foldRight(l, 0)((_, s) => s + 1)
 
-  def foldLeft[A,B](l: List[A], z: B)(f: (B, A) => B): B = ???
+  def foldLeft[A,B](l: List[A], z: B)(f: (B, A) => B): B =
+    as match {
+      case Nil => z
+      case Cons(x, xs) => f(x, foldRight(xs, z)(f))
+    }
 
   def map[A,B](l: List[A])(f: A => B): List[B] = ???
+}
+
+object ListMain extends App {
+  val l1 = List(1, 2, 3, 4)
+  val l2 = Nil
+  val l3 = List(5, 6, 7, 8)
+  val l4 = List(1)
+
+  val s5 = Seq.fill(1000000)(3)
+  val l5 = List(s5:_*)
+
+  import List._
+//
+//  println(tail(l1))
+//  println(setHead(l1, 42))
+//  println(drop(l1, 2))
+//  println(dropWhile(l1, (x : Int)  => x <= 3))
+//  println(init(l1))
+//
+//
+//  println(tail(l2))
+//  println(setHead(l2, 42))
+//  println(drop(l2, 2))
+//  println(dropWhile(l2, (x : Int)  => x <= 2))
+//  println(init(l2))
+//
+//  println(init(l4))
+//
+//  println(append(l1, l3))
+
+
+  print(length(l5))
+
 }
