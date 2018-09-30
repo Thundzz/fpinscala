@@ -1,5 +1,7 @@
 package fpinscala.datastructures
 
+import scala.annotation.tailrec
+
 sealed trait List[+A] // `List` data type, parameterized on a type, `A`
 case object Nil extends List[Nothing] // A `List` data constructor representing the empty list
 /* Another data constructor, representing nonempty lists. Note that `tail` is another `List[A]`,
@@ -8,20 +10,25 @@ which may be `Nil` or another `Cons`.
 case class Cons[+A](head: A, tail: List[A]) extends List[A]
 
 object List { // `List` companion object. Contains functions for creating and working with lists.
-  def sum(ints: List[Int]): Int = ints match { // A function that uses pattern matching to add up a list of integers
-    case Nil => 0 // The sum of the empty list is 0.
-    case Cons(x,xs) => x + sum(xs) // The sum of a list starting with `x` is `x` plus the sum of the rest of the list.
-  }
+  def sum(ints: List[Int]): Int = foldLeft(ints, 0)(_ + _)
 
-  def product(ds: List[Double]): Double = ds match {
-    case Nil => 1.0
-    case Cons(0.0, _) => 0.0
-    case Cons(x,xs) => x * product(xs)
-  }
+  def product(ds: List[Double]): Double = foldLeft(ds, 1.0)(_ * _)
 
   def apply[A](as: A*): List[A] = // Variadic function syntax
     if (as.isEmpty) Nil
     else Cons(as.head, apply(as.tail: _*))
+
+
+  def fill[A](n : Int)(a : => A) : List[A] = {
+    @tailrec
+    def loop(n: Int, acc: List[A]): List[A] = {
+      if (n == 0) acc
+      else loop(n - 1, Cons(a, acc))
+    }
+    loop(n, Nil)
+  }
+
+
 
   val x = List(1,2,3,4,5) match {
     case Cons(x, Cons(2, Cons(4, _))) => x
@@ -80,13 +87,22 @@ object List { // `List` companion object. Contains functions for creating and wo
     case Cons(x1, xs) => Cons(x1, init(xs))
   }
 
-  def length[A](l: List[A]): Int = foldRight(l, 0)((_, s) => s + 1)
+  def length[A](l: List[A]): Int = foldLeft(l, 0)((s, _) => s + 1)
 
+  @tailrec
   def foldLeft[A,B](l: List[A], z: B)(f: (B, A) => B): B =
-    as match {
+    l match {
       case Nil => z
-      case Cons(x, xs) => f(x, foldRight(xs, z)(f))
+      case Cons(head, xs) => foldLeft(xs, f(z, head))(f)
     }
+
+  def reverse[A](l : List[A]) : List[A] = foldLeft[A, List[A]](l, Nil)((acc, h) => Cons(h, acc))
+
+  def foldLeft2[A,B](l: List[A], z: B)(f: (B, A) => B): B =  foldRight(reverse(l), z)((a,b) => f(b,a))
+  def foldRight2[A,B](l: List[A], z: B)(f: (A, B) => B): B =  foldLeft(reverse(l), z)((a,b) => f(b,a))
+
+  def length2[A](l: List[A]): Int = foldRight2(l, 0)((_, s) => 1 + s)
+
 
   def map[A,B](l: List[A])(f: A => B): List[B] = ???
 }
@@ -97,11 +113,12 @@ object ListMain extends App {
   val l3 = List(5, 6, 7, 8)
   val l4 = List(1)
 
-  val s5 = Seq.fill(1000000)(3)
-  val l5 = List(s5:_*)
-
   import List._
-//
+
+  val l5 = fill(10000000)(3)
+
+
+  //
 //  println(tail(l1))
 //  println(setHead(l1, 42))
 //  println(drop(l1, 2))
@@ -120,6 +137,6 @@ object ListMain extends App {
 //  println(append(l1, l3))
 
 
-  print(length(l5))
+  print(length2(l5))
 
 }
