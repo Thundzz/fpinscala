@@ -1,20 +1,31 @@
 package fpinscala.errorhandling
 
 
-import scala.{Option => _, Some => _, Either => _, _} // hide std library `Option`, `Some` and `Either`, since we are writing our own in this chapter
+import scala.{Either => _, Option => _, Some => _} // hide std library `Option`, `Some` and `Either`, since we are writing our own in this chapter
 
 sealed trait Option[+A] {
-  def map[B](f: A => B): Option[B] = ???
+  def map[B](f: A => B): Option[B] = this match {
+    case None => None
+    case Some(a) => Some(f(a))
+  }
 
-  def getOrElse[B>:A](default: => B): B = ???
+  def getOrElse[B >: A](default: => B): B = this match {
+    case None => default
+    case Some(a) => a
+  }
 
-  def flatMap[B](f: A => Option[B]): Option[B] = ???
+  def flatMap[B](f: A => Option[B]): Option[B] = this.map(f).getOrElse(None)
 
-  def orElse[B>:A](ob: => Option[B]): Option[B] = ???
+  def orElse[B >: A](ob: => Option[B]): Option[B] = this.flatMap(_ => ob)
 
-  def filter(f: A => Boolean): Option[A] = ???
+  def filter(f: A => Boolean): Option[A] = this match {
+    case None => None
+    case Some(a) => if (f(a)) Some(a) else None
+  }
 }
+
 case class Some[+A](get: A) extends Option[A]
+
 case object None extends Option[Nothing]
 
 object Option {
@@ -24,7 +35,9 @@ object Option {
       val x = 42 + 5
       x + y
     }
-    catch { case e: Exception => 43 } // A `catch` block is just a pattern matching block like the ones we've seen. `case e: Exception` is a pattern that matches any `Exception`, and it binds this value to the identifier `e`. The match returns the value 43.
+    catch {
+      case e: Exception => 43
+    } // A `catch` block is just a pattern matching block like the ones we've seen. `case e: Exception` is a pattern that matches any `Exception`, and it binds this value to the identifier `e`. The match returns the value 43.
   }
 
   def failingFn2(i: Int): Int = {
@@ -32,17 +45,67 @@ object Option {
       val x = 42 + 5
       x + ((throw new Exception("fail!")): Int) // A thrown Exception can be given any type; here we're annotating it with the type `Int`
     }
-    catch { case e: Exception => 43 }
+    catch {
+      case e: Exception => 43
+    }
   }
 
   def mean(xs: Seq[Double]): Option[Double] =
     if (xs.isEmpty) None
     else Some(xs.sum / xs.length)
-  def variance(xs: Seq[Double]): Option[Double] = ???
 
-  def map2[A,B,C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] = ???
+  def variance(xs: Seq[Double]): Option[Double] = {
+    mean(xs).flatMap {
+      m =>
+        mean(xs.map(x => Math.pow(x - m, 2)))
+    }
+  }
 
-  def sequence[A](a: List[Option[A]]): Option[List[A]] = ???
+  def map2[A, B, C](a: Option[A], b: Option[B])(f: (A, B) => C): Option[C] = (a, b) match {
+    case (Some(aa), Some(bb)) => Some(f(aa, bb))
+    case _ => None
 
-  def traverse[A, B](a: List[A])(f: A => Option[B]): Option[List[B]] = ???
+  }
+
+  def sequence[A](a: List[Option[A]]): Option[List[A]] = {
+
+    def go(aa: List[Option[A]], acc: List[A]): Option[List[A]] = {
+      aa match {
+        case Some(h) :: t => go(t, h :: acc)
+        case None :: t => None
+        case Nil => Some(acc)
+      }
+    }
+
+    go(a, Nil)
+  }
+
+  def sequence2[A](a: List[Option[A]]): Option[List[A]] = a match {
+    case h::t => sequence(t).flatMap(tt => h.map(hh =>  hh::tt))
+    case Nil => Some(Nil)
+
+  }
+
+  def traverse[A, B](a: List[A])(f: A => Option[B]): Option[List[B]] = a match {
+    case h::t => traverse(t)(f).flatMap(tt => f(h).map(hh =>  hh::tt))
+    case Nil => Some(Nil)
+  }
+
+  def sequence3[A](a: List[Option[A]]): Option[List[A]] =
+    traverse(a)(identity)
+}
+
+object OptionMain extends App {
+
+  import Option._
+
+  val a = mean(Seq(4))
+  val empty = mean(Seq(4))
+
+  val x: Option[Double] = a.orElse(Some(4))
+  //println(x)
+
+  val b = Option.sequence3(List(Some(1), Some("hello"), Some(1), Some(1)))
+  println(b)
+
 }
