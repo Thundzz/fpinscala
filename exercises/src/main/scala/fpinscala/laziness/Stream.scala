@@ -1,6 +1,7 @@
 package fpinscala.laziness
 
-import scala.collection.immutable.{ Stream => _ }
+import scala.collection.immutable.{Stream => _}
+import scala.collection.mutable.ListBuffer
 
 trait Stream[+A] {
 
@@ -17,6 +18,33 @@ trait Stream[+A] {
   final def find(f: A => Boolean): Option[A] = this match {
     case Empty => None
     case Cons(h, t) => if (f(h())) Some(h()) else t().find(f)
+  }
+
+  def toListRec() : List[A] = this match {
+      case Empty => Nil
+      case Cons(h, t) =>
+        h() :: t().toListRec()
+  }
+
+  def toListTailRec() : List[A] = {
+    def aux(s : Stream[A], acc : List[A]) : List[A] = s match {
+      case Empty => acc
+      case Cons(h, t) => aux(t(), h()::acc)
+    }
+    aux(this, Nil).reverse
+  }
+
+  def toListFast() : List[A] = {
+    val acc = ListBuffer[A]()
+    def aux(s : Stream[A]) : List[A] =  {
+      s match {
+        case Empty => acc.toList
+        case Cons(h, t) =>
+          acc += h()
+          aux(t())
+      }
+    }
+    aux(this)
   }
 
   def toList: List[A] = {
@@ -79,7 +107,7 @@ object Stream {
 
 object MainStream extends App {
   val s = Stream(1, 2, 3)
-  val l = s.toList
+  val l = s.toListFast
   println(l)
 
   println(s.take(2).toList)
