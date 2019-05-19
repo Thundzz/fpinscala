@@ -73,13 +73,52 @@ object RNG {
     (l.reverse, rn)
   }
 
-  val doubleBetter: Rand[Double] = map(int)(x => x / (Int.MaxValue.toDouble + 1))
+  val doubleBetter: Rand[Double] = map(nonNegativeInt)(x => x / (Int.MaxValue.toDouble + 1))
 
-  def map2[A, B, C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] = ???
+  def map2[A, B, C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] =
+    rng => {
+      val (a, rnga) = ra(rng)
+      val (b, rngb) = rb(rnga)
+      (f(a, b), rngb)
+    }
 
-  def sequence[A](fs: List[Rand[A]]): Rand[List[A]] = ???
+  def both[A, B](ra: Rand[A], rb: Rand[B]): Rand[(A, B)] =
+    map2(ra, rb)((_, _))
 
-  def flatMap[A, B](f: Rand[A])(g: A => Rand[B]): Rand[B] = ???
+  val randIntDouble: Rand[(Int, Double)] =
+    both(int, double)
+
+  val randDoubleInt: Rand[(Double, Int)] =
+    both(double, int)
+
+  def sequence[A](fs: List[Rand[A]]): Rand[List[A]] = {
+    fs.foldRight(unit(Nil: List[A])) {
+      (rand, randList) => map2(rand, randList)(_ :: _)
+    }
+  }
+
+  def intsWithSequence(i: Int): Rand[List[Int]] = {
+    sequence(List.fill(i)(int))
+  }
+
+  def flatMap[A, B](f: Rand[A])(g: A => Rand[B]): Rand[B] = {
+    // f : rng => 'a, rng
+    // g : 'a =>  (rng => ('b, rng))
+    // flatmap() : rng => 'b, rng
+        // TODO: finish this
+    rng =>
+      val (a, rng1) = f(rng)
+      g(a)(rng1)
+  }
+
+  def nonNegativeLessThan(n: Int): Rand[Int] =
+    flatMap(nonNegativeInt)(i => {
+      val mod = i % n
+      if(n - i <= mod)
+        nonNegativeLessThan(n)
+      else
+        unit(i)
+    })
 }
 
 case class State[S, +A](run: S => (A, S)) {
@@ -108,15 +147,22 @@ object State {
 }
 
 object StateApp extends App {
-//  var rng: RNG = RNG.Simple(42)
-//  println(RNG.ints(9)(rng))
-//  println(RNG.ints(10)(rng))
-//  println(RNG.ints(11)(rng))
-//  println(RNG.ints(12)(rng))
+  //  var rng: RNG = RNG.Simple(42)
+  //  println(RNG.ints(9)(rng))
+  //  println(RNG.ints(10)(rng))
+  //  println(RNG.ints(11)(rng))
+  //  println(RNG.ints(12)(rng))
 
   var rng: RNG = RNG.Simple(42)
+//
+//  println(RNG.doubleBetter(rng))
+//  println(RNG.randIntDouble(rng))
+//
+//  private val value = List.fill(9)(RNG.int)
+//
+//  val seq = RNG.sequence(value)(rng)
+//  println(seq)
+//  println(RNG.intsWithSequence(9)(rng))
+  println(RNG.nonNegativeLessThan(10)(rng))
 
-  println(RNG.doubleBetter(rng))
-
-  // TODO : try to combine Rand types.
 }
