@@ -105,31 +105,55 @@ object RNG {
     // f : rng => 'a, rng
     // g : 'a =>  (rng => ('b, rng))
     // flatmap() : rng => 'b, rng
-        // TODO: finish this
+    // TODO: finish this
     rng =>
       val (a, rng1) = f(rng)
-      g(a)(rng1)
+      val (b, rng2) = g(a)(rng1)
+      (b, rng2)
+
   }
 
   def nonNegativeLessThan(n: Int): Rand[Int] =
     flatMap(nonNegativeInt)(i => {
       val mod = i % n
-      if(n - i <= mod)
+      val alpha = (Int.MaxValue / n) * n
+      if (i > alpha)
         nonNegativeLessThan(n)
       else
-        unit(i)
+        unit(mod)
     })
+
+  def mapViaFlatMap[A, B](s: Rand[A])(f: A => B): Rand[B] = {
+    flatMap(s)(a => unit(f(a)))
+  }
+
+  def map2ViaFlatMap[A, B, C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] = {
+    flatMap(ra)(a => map(rb)(b => f(a, b)))
+  }
+
+  def rollDie: Rand[Int] = nonNegativeLessThan(6)
 }
 
 case class State[S, +A](run: S => (A, S)) {
   def map[B](f: A => B): State[S, B] =
-    ???
+    State(s => {
+      val (a, s2) = run(s)
+      (f(a), s2)
+    })
 
   def map2[B, C](sb: State[S, B])(f: (A, B) => C): State[S, C] =
-    ???
+    State(s => {
+      val (a, s2) = run(s)
+      val (b, s3) = sb.run(s2)
+      (f(a, b), s3)
+    })
 
-  def flatMap[B](f: A => State[S, B]): State[S, B] =
-    ???
+  def flatMap[B](f: A => State[S, B]): State[S, B] = {
+    State(s  => {
+      val (a, s2) = run(s)
+      f(a).run(s2)
+    })
+  }
 }
 
 sealed trait Input
@@ -144,6 +168,13 @@ object State {
   type Rand[A] = State[RNG, A]
 
   def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] = ???
+
+  def unit[S, A](a: A) : State[S, A] = State(s => (a, s))
+
+  def sequence[S, A](l : List[State[S, A]]) : State[S, List[A]] = {
+    // TODO : implement this (exercice 6.10)
+    ???
+  }
 }
 
 object StateApp extends App {
@@ -153,16 +184,18 @@ object StateApp extends App {
   //  println(RNG.ints(11)(rng))
   //  println(RNG.ints(12)(rng))
 
-  var rng: RNG = RNG.Simple(42)
-//
-//  println(RNG.doubleBetter(rng))
-//  println(RNG.randIntDouble(rng))
-//
-//  private val value = List.fill(9)(RNG.int)
-//
-//  val seq = RNG.sequence(value)(rng)
-//  println(seq)
-//  println(RNG.intsWithSequence(9)(rng))
-  println(RNG.nonNegativeLessThan(10)(rng))
+  var rng: RNG = RNG.Simple(6464)
+  //
+  //  println(RNG.doubleBetter(rng))
+  //  println(RNG.randIntDouble(rng))
+  //
+  //  private val value = List.fill(9)(RNG.int)
+  //
+  //  val seq = RNG.sequence(value)(rng)
+  //  println(seq)
+  //  println(RNG.intsWithSequence(9)(rng))
+  println(RNG.nonNegativeLessThan(1000)(rng))
+  val zero = RNG.rollDie(RNG.Simple(5))._1
+  println(zero)
 
 }
