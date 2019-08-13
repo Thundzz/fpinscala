@@ -149,7 +149,7 @@ case class State[S, +A](run: S => (A, S)) {
     })
 
   def flatMap[B](f: A => State[S, B]): State[S, B] = {
-    State(s  => {
+    State(s => {
       val (a, s2) = run(s)
       f(a).run(s2)
     })
@@ -167,14 +167,42 @@ case class Machine(locked: Boolean, candies: Int, coins: Int)
 object State {
   type Rand[A] = State[RNG, A]
 
-  def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] = ???
 
-  def unit[S, A](a: A) : State[S, A] = State(s => (a, s))
-
-  def sequence[S, A](l : List[State[S, A]]) : State[S, List[A]] = {
-    // TODO : implement this (exercice 6.10)
-    ???
+  def update(input: Input): State[Machine, Machine] = {
+    State(machine =>
+      (machine, input) match {
+        case (Machine(true, candies, coins), Coin) => (Machine(locked = false, candies, coins + 1), Machine(locked = false, candies, coins + 1))
+        case (Machine(false, candies, coins), Turn) => (Machine(locked = true, candies - 1, coins), Machine(locked = true, candies - 1, coins))
+        case (m, _) => (m, m)
+      })
   }
+
+  def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] = {
+
+    val a = inputs.map(input => update(input))
+    State.sequence(a).map(x => (x.last.coins, x.last.candies))
+
+    // TODO : rewrite more elegantly
+  }
+
+  def unit[S, A](a: A): State[S, A] = State(s => (a, s))
+
+  def sequence[S, A](l: List[State[S, A]]): State[S, List[A]] = {
+    l.foldRight(State.unit[S, List[A]](Nil)) {
+      (state, accumulator) => {
+        state.map2(accumulator)(_ :: _)
+      }
+    }
+  }
+
+  def get[S]: State[S, S] = State(s => (s, s))
+
+  def set[S](s: S): State[S, Unit] = State(_ => ((), s))
+
+  def modify[S](f: S => S): State[S, Unit] = for {
+    s <- get
+    _ <- set(f(s))
+  } yield ()
 }
 
 object StateApp extends App {
@@ -197,5 +225,8 @@ object StateApp extends App {
   println(RNG.nonNegativeLessThan(1000)(rng))
   val zero = RNG.rollDie(RNG.Simple(5))._1
   println(zero)
+
+  val x = State.simulateMachine(Seq(Coin, Turn, Coin, Turn, Turn, Turn, Coin, Turn, Coin, Coin).toList).run(Machine(true, 5, 10))
+  println(x)
 
 }
