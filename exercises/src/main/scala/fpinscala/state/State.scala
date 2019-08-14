@@ -1,5 +1,9 @@
 package fpinscala.state
 
+import fpinscala.state.State.update
+
+import scala.collection.immutable
+
 
 trait RNG {
   def nextInt: (Int, RNG) // Should generate a random `Int`. We'll later define other functions in terms of `nextInt`.
@@ -168,21 +172,18 @@ object State {
   type Rand[A] = State[RNG, A]
 
 
-  def update(input: Input): State[Machine, Machine] = {
-    State(machine =>
-      (machine, input) match {
-        case (Machine(true, candies, coins), Coin) => (Machine(locked = false, candies, coins + 1), Machine(locked = false, candies, coins + 1))
-        case (Machine(false, candies, coins), Turn) => (Machine(locked = true, candies - 1, coins), Machine(locked = true, candies - 1, coins))
-        case (m, _) => (m, m)
-      })
-  }
+  def update(input: Input)(machine: Machine): Machine =
+    (machine, input) match {
+      case (Machine(true, candies, coins), Coin) => Machine(locked = false, candies, coins + 1)
+      case (Machine(false, candies, coins), Turn) => Machine(locked = true, candies - 1, coins)
+      case (m, _) => m
+    }
 
   def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] = {
-
-    val a = inputs.map(input => update(input))
-    State.sequence(a).map(x => (x.last.coins, x.last.candies))
-
-    // TODO : rewrite more elegantly
+    for {
+      _ <- State.sequence(inputs.map(x => modify(update(x))))
+      machine <- get
+    } yield (machine.candies, machine.coins)
   }
 
   def unit[S, A](a: A): State[S, A] = State(s => (a, s))
