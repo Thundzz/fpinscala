@@ -63,11 +63,9 @@ object Par {
   }
 
   def parFilter[A](ps: List[A])(f: A => Boolean): Par[List[A]] = {
-    val fbs: List[Par[Boolean]] = ps.map(asyncF(f))
-    val x : Par[List[Boolean]] = sequence(fbs)
-    val y : Par[List[(Boolean, A)]] = map2(x, unit(ps))((bool, v) => bool.zip(v))
-    val z = map(y)(l => l.filter(_._1).map(_._2))
-    z
+    val fbs: List[Par[List[A]]] = ps.map(asyncF(x => if (f(x)) List(x) else List()))
+    val p: Par[List[List[A]]] = sequence(fbs)
+    map(p)(x => x.flatten)
   }
 
   def sequence[A](ps: List[Par[A]]): Par[List[A]] = {
@@ -107,7 +105,7 @@ object Par {
 
 }
 
-object Examples {
+object Examples extends App {
 
   import Par._
 
@@ -119,4 +117,41 @@ object Examples {
       sum(l) + sum(r) // Recursively sum both halves and add the results together.
     }
 
+  def sumPar(ints: IndexedSeq[Int]): Par[Int] = {
+    if (ints.length <= 1)
+      Par.unit(ints.headOption.getOrElse(0))
+    else {
+      val (l, r) = ints.splitAt(ints.length / 2) // Divide the sequence in half using the `splitAt` function.
+      Par.map2(Par.fork(sumPar(l)), Par.fork(sumPar(r)))(_ + _)
+    }
+  }
+
+  def divideAndConquer[A](vec: IndexedSeq[A])(f: (A, A) => A, defaultValue: A): Par[A] = {
+    if (vec.size <= 1)
+      Par.unit(vec.headOption getOrElse defaultValue)
+    else {
+      val (l, r) = vec.splitAt(vec.length / 2)
+      Par.map2(
+        Par.fork(divideAndConquer(l)(f, defaultValue)),
+        Par.fork(divideAndConquer(r)(f, defaultValue))
+      )(f)
+    }
+  }
+
+  def rewrittenSum(ints: IndexedSeq[Int]): Par[Int] = divideAndConquer(ints)(_ + _, 0)
+
+  def wordCount(paragraphs: List[String]): Par[Int] = {
+    ???
+  }
+
+  val es: ExecutorService = Executors.newFixedThreadPool(4)
+
+  val seq = Vector(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+
+  // This deadlocks because there are not enough threads to perform the computation
+  val sum1 = Par.run(es)(rewrittenSum(seq)).get()
+  println(sum1)
+  val sum2 = Par.run(es)(sumPar(seq)).get()
+  println(sum2)
+  es.shutdown()
 }
