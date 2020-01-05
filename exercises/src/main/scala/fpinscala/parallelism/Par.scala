@@ -6,6 +6,7 @@ import language.implicitConversions
 object Par {
   type Par[A] = ExecutorService => Future[A]
 
+
   def run[A](s: ExecutorService)(a: Par[A]): Future[A] = a(s)
 
   def unit[A](a: A): Par[A] = (es: ExecutorService) => UnitFuture(a) // `unit` is represented as a function that returns a `UnitFuture`, which is a simple implementation of `Future` that just wraps a constant value. It doesn't use the `ExecutorService` at all. It's always done and can't be cancelled. Its `get` method simply returns the value that we gave it.
@@ -61,9 +62,12 @@ object Par {
     sequence(fbs)
   }
 
-  def parFilter[A](ps: List[A])(f: A => Boolean): Par[List[A]] = fork {
+  def parFilter[A](ps: List[A])(f: A => Boolean): Par[List[A]] = {
     val fbs: List[Par[Boolean]] = ps.map(asyncF(f))
-    fbs.zip(ps) ???
+    val x : Par[List[Boolean]] = sequence(fbs)
+    val y : Par[List[(Boolean, A)]] = map2(x, unit(ps))((bool, v) => bool.zip(v))
+    val z = map(y)(l => l.filter(_._1).map(_._2))
+    z
   }
 
   def sequence[A](ps: List[Par[A]]): Par[List[A]] = {
