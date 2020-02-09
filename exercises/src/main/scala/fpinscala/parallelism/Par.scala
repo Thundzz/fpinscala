@@ -126,25 +126,57 @@ object Examples extends App {
     }
   }
 
-  def divideAndConquer[A](vec: IndexedSeq[A])(f: (A, A) => A, defaultValue: A): Par[A] = {
+  def divideAndConquer[A, B](vec: IndexedSeq[A])(f: (A, A) => A, defaultValue: A): Par[A] = fork {
     if (vec.size <= 1)
       Par.unit(vec.headOption getOrElse defaultValue)
     else {
       val (l, r) = vec.splitAt(vec.length / 2)
       Par.map2(
-        Par.fork(divideAndConquer(l)(f, defaultValue)),
-        Par.fork(divideAndConquer(r)(f, defaultValue))
+        divideAndConquer(l)(f, defaultValue),
+        divideAndConquer(r)(f, defaultValue)
       )(f)
     }
   }
 
   def rewrittenSum(ints: IndexedSeq[Int]): Par[Int] = divideAndConquer(ints)(_ + _, 0)
 
+  def parallelMax(ints: IndexedSeq[Int]): Par[Int] = divideAndConquer(ints)((x, y) => Seq(x, y).max, ints.head)
+
+  // P110
   def wordCount(paragraphs: List[String]): Par[Int] = {
-    ???
+
+    def aux[A, B](vec: IndexedSeq[A])(f: A => B, g: (B, B) => B, defaultValue: B): Par[B] = fork {
+      if (vec.size <= 1)
+        Par.unit(vec.headOption.map(f) getOrElse defaultValue)
+      else {
+        val (l, r) = vec.splitAt(vec.length / 2)
+        Par.map2(
+          aux(l)(f, g, defaultValue),
+          aux(r)(f, g, defaultValue)
+        )(g)
+      }
+    }
+
+    aux(paragraphs.toIndexedSeq)(s => s.split(" ").length, _ + _, 0)
   }
 
-  val es: ExecutorService = Executors.newFixedThreadPool(4)
+  def map3[A, B, C, D](a: Par[A], b: Par[B], c: Par[C])(f: (A, B, C) => D): Par[D] = {
+    val value = map2(a, b)((a, b) => f.curried.apply(a)(b))
+    map2(c, value)((x, y) => y(x))
+  }
+
+  def map4[A, B, C, D, E](a: Par[A], b: Par[B], c: Par[C], d: Par[D])(f: (A, B, C, D) => E): Par[E] = {
+    val value = map3(a, b, c)((a, b, c) => f.curried.apply(a)(b)(c))
+    map2(d, value)((x, y) => y(x))
+  }
+
+  def map5[A, B, C, D, E, F](a: Par[A], b: Par[B], c: Par[C], d: Par[D], e: Par[E])(f: (A, B, C, D, E) => F): Par[F] = {
+    val value = map4(a, b, c, d)((a, b, c, d) => f.curried.apply(a)(b)(c)(d))
+    map2(e, value)((x, y) => y(x))
+  }
+
+
+  val es: ExecutorService = Executors.newFixedThreadPool(200)
 
   val seq = Vector(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
 
@@ -153,5 +185,21 @@ object Examples extends App {
   println(sum1)
   val sum2 = Par.run(es)(sumPar(seq)).get()
   println(sum2)
+
+  // p110 maximum
+  val maxi = Par.run(es)(parallelMax(seq)).get()
+  println(maxi)
+
+  val paragraphs: List[String] = Seq("hello world", "i love cheese", "space rocks").toList
+  val count = Par.run(es)(wordCount(paragraphs)).get()
+  println(count)
+
+  val map5SumPar = map5(unit(1), unit(1), unit(1), unit(1), unit(1))(_ + _ + _ + _ + _)
+  val map5Sum = Par.run(es)(map5SumPar).get()
+  println(map5Sum)
+
+  val maxWord = Par.run(es)(wordCount(paragraphs)).get()
+  println(count)
+
   es.shutdown()
 }
